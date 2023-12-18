@@ -62,7 +62,8 @@ INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = [
 
 if args.conditional:
     # Embed categorical variables into dummy variables, if conditioning on vegetation class and land use
-    data_cat = pd.get_dummies( data[['classid', 'igbp_land_use']])
+    data_cat = pd.get_dummies(data[['classid', "igbp_land_use"]])
+    data = data.drop(columns = ['classid', "igbp_land_use"])
 
     # Get categorial data dimensions for RNN model
     CONDITIONAL_FEATURES = data_cat.shape[1]
@@ -140,7 +141,7 @@ for s in sites:
     if args.conditional:
         test_ds = gpp_dataset_cat(data_test, data_cat_test, train_mean, train_std)
     else:
-        test_ds = gpp_dataset(data_test, train_mean, train_std)
+        test_ds = gpp_dataset_test(data_test, train_mean, train_std)
     
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,

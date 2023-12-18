@@ -15,8 +15,9 @@ def train_loop(dataloader, model, optimizer, DEVICE):
     # Set model to training mode (activates dropout, batch normalization, etc, if present)
     model.train()
 
+    n_batches = 0
     # Loop over all training sites
-    for x, y, mask in dataloader:
+    for x, y, mask in tqdm(dataloader):
         # Send tensors to the correct device
         x = x.to(DEVICE)
         y = y.to(DEVICE)
@@ -42,12 +43,14 @@ def train_loop(dataloader, model, optimizer, DEVICE):
         # Compute coefficient of determination on training data
         train_r2 += r2_score(y_true = y.detach().cpu().numpy().flatten(),      # format tensor to np.array
                              y_pred = y_pred.detach().cpu().numpy().flatten())
+        
+        n_batches += 1
 
     # Set model to evaluation mode (deactivate droptou, etc)
     model.eval()
 
     # Return computed training loss
-    return train_loss, train_r2
+    return train_loss/n_batches, train_r2/n_batches
 
 
 
@@ -132,17 +135,17 @@ def test_loop(dataloader, model, DEVICE):
             y_pred = y_pred.detach().cpu().numpy()
 
             # Get mask as a Boolean list, from the torch tensor given by the data loader
-            mask = mask.numpy()[0]
+            # mask = mask.numpy()[0]
 
             # Compute R2 on non-imputed testing data
-            test_r2 += r2_score(y_true = y.detach().cpu().numpy()[mask],
-                               y_pred = y_pred[mask])
+            test_r2 += r2_score(y_true = y.detach().cpu().numpy()[mask.squeeze()].flatten(),
+                               y_pred = y_pred[mask.squeeze()].flatten())
             
             n_sites += 1  # Increase counter
             
 
     # Return computed testing loss
-    return test_loss, test_r2/n_sites, y_pred
+    return test_loss/n_sites, test_r2/n_sites, y_pred
 
 
 def test_loop_cat(dataloader, model, DEVICE):
