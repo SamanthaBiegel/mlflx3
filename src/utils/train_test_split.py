@@ -12,7 +12,7 @@ def train_test_split_chunks(df):
     20% of data is used for validation.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing 'TA_F', 'classid', and 'sitename' columns
+    - df (pd.DataFrame): DataFrame containing flux variables used for training and 'TA_F', 'classid', and 'sitename' columns
 
     Returns:
     - df_train (pd.DataFrame): DataFrame with the train data
@@ -21,6 +21,11 @@ def train_test_split_chunks(df):
 
     # Group by 'chunk_id' and calculate mean temperature
     grouped = df.groupby('chunk_id').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
+    # Set test-split size (0-1)
+    test_size = 0.2
+
+    # Group by 'sitename' and calculate mean temperature
+    grouped = df.groupby('sitename').agg({'TA_F': 'mean', 'classid': 'first', 'ai': 'first'})
 
     # Discretize numerical columns into bins
     grouped['TA_F_bins'] = pd.cut(grouped['TA_F'], bins=2, labels=False)
@@ -56,7 +61,7 @@ def train_test_split_chunks(df):
     
     else:
         # Use train_test_split to create two site groups, stratified by mean temperature and aridity
-        train_df, val_df = train_test_split(grouped, test_size=0.2, stratify=grouped['combined_target'])
+        train_df, val_df = train_test_split(grouped, test_size=test_size, stratify=grouped['combined_target'])
 
         # Get train and validation chunks
         chunks_train = train_df.index

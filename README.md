@@ -1,7 +1,30 @@
-# A template for a data science project using python
+# An implementation of GPP modelling with traditional and recurrent neural networks
 
-This template is inspired by the 
-[cookiecutter data science template](https://drivendata.github.io/cookiecutter-data-science/).
+This repository is a refactoring of the [mlflx2](https://github.com/geco-bern/mlflx2) project.
+
+#### Summary:
+
+This repository implements a machine learning workflow to predict GPP. The models considered are a traditional deep neural network
+(DNN), a recurrent neural network with an LSTM cell (Long-Short-Term-Memory) stacked with two extra connected layers, and a mixed model
+that concatenates the LSTM output with categorical variables and then stacks connected layers on top (indicated by the conditional
+argument in this implementation). The models are trained following two different workflows, to evaluate the out-of-sample performance:
+
+- *Leave-site-out cross validation*: The whole time series from a single site is taken out as a test set. The remaining data is randomly split
+by sites, stratified based on the mean temperature and aridity of the sites, with 20\% of the sites used for validation and 80\%
+used for model training. The model is trained by minimizing the MSE for a maximum number of epochs and early stopping is used whenever the
+MSE on the validation set has not improved for a given number of epochs (set by the patience parameter). The best model (the one with
+the lowest MSE on the validation sites) is chosen and used to predict GPP on the left-out site (test data). Then the coefficient of 
+determination R2 is computed. By repeating this workflow for each site in the dataset, we obtain an R2 score for each site and 
+study the performance and generalization abilities of the machine learning models.
+
+- *Leave-group-out cross validation*: The sites in the dataset are split into groups based on vegetation type or continent. For each group,
+the model is trained with the leave-site-out procedure described above (hence there are less sites in the group and less data for training),
+resulting in one model per site in the group (trained on the remaining sites in the group, with a train-validation split and early
+stopping). To estimate the within-group and across-groups performance, we compute the bias of the GPP predictions (average difference
+between observed and predicted values) for the left-out sites within the group - within-group bias - and for all the sites outside of 
+the given group - across-group bias - averaged over all the trained models. 
+
+The DNN, LSTM and conditional LSTM models are compared against each other, but also against the P-model (mechanistic photosyntehsis model).
 
 ## Setting up the repository
 
@@ -14,18 +37,7 @@ cd mlflx3
 conda env create -f environment.yml --name mlflx3_env
 conda activate mlflx3_env
 ```
-The `environment.yml` file in this template includes basic data science packages. When starting a new project,
-you may want to assign a custom name to the environment, install any remaining packages used during
-the project and update the environment file running:
-
-```
-conda env export --name myname
-```
-
-The previous code will update the packages specified in `environment.yml` to match all the
-packages installed in your current conda environment, with their versions. This is key to a reproducible
-workflow, so make sure that your environment file stays up to date with the packages (and versions)
-used in your project.
+The `environment.yml` file in this repository includes the packages necessary to run the python code to train the models on the GECO workstations. A second conda environment caleed `environment_cuda12.yml` was used to run the code on the GECO laptops, which have different GPUs and CUDA drivers versions. 
 
 To work with PyTorch and train models on a GPU, make sure that your CUDA drivers are compatible with 
 the `pytorch` version. Check how to install `pytorch` [here](https://pytorch.org/). Then you can check
@@ -41,6 +53,11 @@ NOTE: If you need to use a package that is unavailable via conda, install it wit
 conda environment. Do not play with conda again or you risk breaking your environment. Always write in the 
 README.md of your repository in detail how to reproduce your environment, step by step.
 
+The analysis of the GPP predictions is performed in R, borrowing from the previous [eval_mlflx.Rmd](https://github.com/geco-bern/mlflx2/blob/main/src/evaluation/eval_mlflx.Rmd). In order to ensure reproducibility, this repository is also an R project and the package versions used are saved in the `renv.lock` file. To use this, open the `mlflx3.Rproj` file in RStudio and load the necessary packages by running:
+```
+renv::restore()
+```
+
 ## Directory structure
 
 This is a general structure for a python project, which should be tailored to the needs of 
@@ -51,16 +68,13 @@ individual data analyses.
 ├── LICENSE
 |
 ├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
+│   ├── external       <- Data from third party sources, includes flux sites metadata.
+│   ├── processed      <- The final data sets for modeling.
 │   └── raw            <- The original, immutable data dump. Never touch.
 │
-├── models             <- Trained and serialized models, model predictions, or model summaries.
+├── models             <- Trained and serialized models (weights), model predictions, and trainings logs.
 │
-├── notebooks          <- Jupyter notebooks for exploration only. Naming convention should contain
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-pap-initial-data-exploration`.
+├── notebooks          <- Jupyter notebooks for exploration only. RMarkdowns for analysis of results.
 │
 ├── references         <- Data dictionaries, manuals, bibliography (.bib)
 │
@@ -75,21 +89,27 @@ individual data analyses.
 ├── src                <- Source code for use in this project.
 │   ├── __init__.py    <- Makes src a Python module.
 │   │
-│   ├── data           <- Scripts to download or generate data.
-│   │   └── 01_clean_dataset.py
+│   ├── data           <- Functions to preprocess and format data for pytorch use.
 │   │
-│   ├── features       <- Scripts to turn raw data into features for modeling.
-│   │   └── 02_build_features.py
+│   ├── features     
 │   │
-│   ├── models         <- Scripts to train models and then use trained models to make
-│   │   │                 predictions.
-│   │   ├── 03_train_model.py
-│   │   └── 04_predict_model.py
+│   ├── models         <- Functions to define model structures.
 │   │
-│   └── visualization  <- Scripts to create exploratory and results oriented visualizations
-│       └── 05_visualize.py
+│   ├── visualization  
+|   |
+│   └── utils          <- General purpose functions and functions to train and test models (train-test split, loops, etc.).
+│   │
+│   ├── 00_preprocess_data.py
+│   ├── 01_lstm_train_leave_site_out.py
+│   ├── 02_dnn_train_leave_site_out.py
+│   └── 03_lstm_train_leave_vegetation_out.py
+|
+├── R                  <- Contains custom R functions used in the results analysis.
 │
-└── .gitignore         <- Indicates which files should be ignored when pushing.
+├── .gitignore         <- Indicates which files should be ignored when pushing.
+├── mlflx3.Rproj       <- Makes the repository an R project
+├── renv.lock          <- Saves the package versions used in the R code
+└── 
 ```
 
 ## Running code
@@ -98,7 +118,6 @@ To reproduce the results used to study the modelling of GPP using LSTM and DNN,
 you can execute the code in this repository in this workflow. 
 
 > NOTE: The implementation allows for more flexibility, changing training parameters, dimension of the neural networks, etc. Check the scripts to explore the different possibilities.
-
 
 The raw input data, obtained from FLUXNET2015 for a selection of sites, is 
 contained in `data/raw/df_20210510.csv`. First, you will need to process these
@@ -122,14 +141,23 @@ python 01_lstm_train_leave_site_out.py --n_epochs=150 --patience=20
 python 02_dnn_train_leave_site_out.py --n_epochs=150 --patience=20
 ```
 
+The code to perform the leave-vegetation-out and leave-continent-out cross-validation
+is still being finished. Together with the saved objects as for the normal LSTM and DNN,
+this analysis saves the mean bias for each site (models trained on different combinations
+of data).
+```
+# Train LSTM model, leaving one vegetation type out at a time
+python 03_lstm_train_leave_vegetation_out.py --group_name="DBF" --n_epochs=150 --patience=20
+python 03_lstm_train_leave_vegetation_out.py --group_name="ENF" --n_epochs=150 --patience=20
+python 03_lstm_train_leave_vegetation_out.py --group_name="GRA" --n_epochs=150 --patience=20
+python 03_lstm_train_leave_vegetation_out.py --group_name="MF" --n_epochs=150 --patience=20
+```
 
-Here you should provide an example for how to run your code, from beginning to end, script
-by script. The more detailed (yet straight to the point) you are, the happier your future self
-and all your collaborators will be.
-
-Data should be kept outside of your repository, whenever it is too big to fit into GitHub
-or there are privacy concerns. In these cases, give explanations of where users can download
-or obtain the data and where they should save it, such that the whole workflow runs smoothly.
+Finally, the analysis and visualization of results are implemented in an 
+RMarkdown file in `notebooks/evaluate_outputs.Rmd`. This file reads the GPP
+predictions from the `models/preds/` folder and produces a series of plots,
+some of them used for the initial manuscript. To knit this report or run the
+code chunks, you can open the file in RStudio and work inside the R Project.
 
 ### Tips for training the models on a remote server
 
@@ -159,7 +187,7 @@ ssh -L 16006:127.0.0.1:6006 username@ip_address  # for workstation2
 cd mlflx3
 conda activate mlflx3_env    # tensorboard must be installed
 
-# Launch tensorboard dashboard
+# Launch tensorboard dashboard as usual
 tensorboard --logdir model/runs/lstm_lso_epochs_150_patience_20_hdim_256_conditional_0/
 # change the runs folder to match the training output file name
 ```
